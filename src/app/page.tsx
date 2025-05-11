@@ -1,69 +1,73 @@
-import Link from "next/link";
+"use client";
 
-import { LatestPost } from "~/app/_components/post";
-import { auth } from "~/server/auth";
-import { api, HydrateClient } from "~/trpc/server";
+import { api } from "~/trpc/react";
+import { useState } from "react";
 
-export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
-  const session = await auth();
+export default function Home() {
+  const { data: todos, refetch } = api.todo.getAll.useQuery();
+  const addTodo = api.todo.add.useMutation({ onSuccess: () => refetch() });
+  const toggleTodo = api.todo.toggle.useMutation({
+    onSuccess: () => refetch(),
+  });
+  const deleteTodo = api.todo.delete.useMutation({
+    onSuccess: () => refetch(),
+  });
 
-  if (session?.user) {
-    void api.post.getLatest.prefetch();
-  }
+  const [title, setTitle] = useState("");
 
   return (
-    <HydrateClient>
-      <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-          <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
-            Create <span className="text-[hsl(280,100%,70%)]">T3</span> App
-          </h1>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/usage/first-steps"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">First Steps →</h3>
-              <div className="text-lg">
-                Just the basics - Everything you need to know to set up your
-                database and authentication.
-              </div>
-            </Link>
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/introduction"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">Documentation →</h3>
-              <div className="text-lg">
-                Learn more about Create T3 App, the libraries it uses, and how
-                to deploy it.
-              </div>
-            </Link>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl text-white">
-              {hello ? hello.greeting : "Loading tRPC query..."}
-            </p>
+    <main className="mx-auto max-w-xl p-6">
+      <h1 className="mb-4 text-2xl font-bold">📝 ToDo App</h1>
 
-            <div className="flex flex-col items-center justify-center gap-4">
-              <p className="text-center text-2xl text-white">
-                {session && <span>Logged in as {session.user?.name}</span>}
-              </p>
-              <Link
-                href={session ? "/api/auth/signout" : "/api/auth/signin"}
-                className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!title) return;
+          addTodo.mutate({ title });
+          setTitle("");
+        }}
+        className="mb-6 flex gap-2"
+      >
+        <input
+          className="flex-1 border p-2"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="New task..."
+        />
+        <button className="rounded bg-blue-500 px-4 py-2 text-white">
+          Add
+        </button>
+      </form>
+
+      <ul className="space-y-2">
+        {todos?.map((todo) => (
+          <li
+            key={todo.id}
+            className="flex items-center justify-between rounded border p-2"
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={todo.completed}
+                onChange={() =>
+                  toggleTodo.mutate({ id: todo.id, completed: !todo.completed })
+                }
+              />
+              <span
+                className={todo.completed ? "text-gray-500 line-through" : ""}
               >
-                {session ? "Sign out" : "Sign in"}
-              </Link>
+                {todo.title}
+              </span>
             </div>
-          </div>
-
-          {session?.user && <LatestPost />}
-        </div>
-      </main>
-    </HydrateClient>
+            <button
+              onClick={() => deleteTodo.mutate({ id: todo.id })}
+              className="text-red-500"
+            >
+              Delete
+            </button>
+          </li>
+        ))}
+      </ul>
+    </main>
   );
 }
